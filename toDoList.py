@@ -25,7 +25,7 @@ st.markdown("<h1 style='text-align: center;'>📝 Wickz Day Planner App</h1>", u
 if "nickname" not in st.session_state:
     st.session_state.nickname = ""
 
-if not st.session_state.nickname:
+if "nickname" not in st.session_state or not st.session_state.nickname:
     nickname_input = st.text_input("Enter your nickname to continue", key="nickname_input")
     if nickname_input:
         nickname_input = nickname_input.strip()
@@ -37,7 +37,8 @@ if not st.session_state.nickname:
             user_doc.set({"created": datetime.now()})
             st.session_state.nickname = nickname_input
             st.success(f"🎉 New nickname created: {nickname_input}")
-    st.stop()
+    else:
+        st.stop()
 
 nickname = st.session_state.nickname
 tasks_ref = db.collection("tasks").document(nickname).collection("items")
