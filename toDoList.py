@@ -2,8 +2,6 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime
-import requests
-import hashlib
 import os
 import json
 
@@ -19,24 +17,31 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# --- Get User IP and Hash It ---
-def get_user_ip():
-    try:
-        response = requests.get("https://ipinfo.io/json", timeout=5)
-        ip = response.json().get("ip", "unknown")
-        return hashlib.sha256(ip.encode()).hexdigest()
-    except Exception as e:
-        return "unknown_user"
-
-user_id = get_user_ip()
-tasks_ref = db.collection("tasks").document(user_id).collection("items")
-
-st.sidebar.info(f"🔒 User ID: {user_id}")
-
-# --- UI Layout ---
+# --- Nickname Input ---
 st.set_page_config(page_title="Wickz To-Do App", layout="wide")
+st.markdown("<h1 style='text-align: center;'>📝 Wickz Day Planner App</h1>", unsafe_allow_html=True)
 
-# Delete All Tasks button (top-left)
+if "nickname" not in st.session_state:
+    st.session_state.nickname = ""
+
+if not st.session_state.nickname:
+    nickname_input = st.text_input("Enter your nickname to start", key="nickname_input")
+    if nickname_input:
+        nickname_input = nickname_input.strip()
+        doc_ref = db.collection("tasks").document(nickname_input)
+        if doc_ref.get().exists:
+            st.error("❌ Nickname already taken. Please choose a different one.")
+        else:
+            st.session_state.nickname = nickname_input
+            st.success(f"✅ Welcome, {nickname_input}!")
+            doc_ref.set({"created": datetime.now()})  # Initialize user document
+    st.stop()
+
+nickname = st.session_state.nickname
+tasks_ref = db.collection("tasks").document(nickname).collection("items")
+st.sidebar.info(f"👤 Nickname: {nickname}")
+
+# --- Delete All Tasks ---
 st.markdown("<div style='text-align: left;'>", unsafe_allow_html=True)
 if st.button("🗑️ Delete All Tasks"):
     all_tasks = tasks_ref.stream()
@@ -44,9 +49,6 @@ if st.button("🗑️ Delete All Tasks"):
         tasks_ref.document(doc.id).delete()
     st.toast("🧹 All tasks deleted!", icon="🗑️")
 st.markdown("</div>", unsafe_allow_html=True)
-
-# Centered Title
-st.markdown("<h1 style='text-align: center;'>📝Wickz Day Planner App</h1>", unsafe_allow_html=True)
 
 # --- Task Input ---
 task_input = st.text_input("Add a new task", key="task_input")
@@ -96,7 +98,6 @@ for group, items in grouped_tasks.items():
             timestamp = data["timestamp"]
             comment = data.get("comment", "")
 
-            # Unique keys
             checkbox_key = f"checkbox_{doc_id}"
             delete_key = f"delete_{doc_id}"
             edit_key = f"edit_mode_{doc_id}"
