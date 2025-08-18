@@ -57,9 +57,9 @@ if "authenticated" not in st.session_state:
 #  Authentication Flow
 # ------------------------------
 if not st.session_state.authenticated:
-    st.title("🔐 Wickz Day Planner — Login or Register")
+    st.title("Wickz Day Planner")
+    st.Subheader("🔐 Login or Register")
     login_tab, register_tab = st.tabs(["Login", "Register"])
-
     with login_tab:
         nick_in   = st.text_input("Nickname", key="login_nick")
         pwd_in    = st.text_input("Password", type="password", key="login_pwd")
