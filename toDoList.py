@@ -44,7 +44,7 @@ if not st.session_state.authenticated:
                     st.session_state.nickname = nickname_login
                     st.session_state.authenticated = True
                     st.success(f"✅ Welcome back, {nickname_login}!")
-                    st.rerun
+                    st.rerun()
                 else:
                     st.error("❌ Incorrect password.")
             else:
@@ -67,7 +67,7 @@ if not st.session_state.authenticated:
                     st.session_state.nickname = nickname_new
                     st.session_state.authenticated = True
                     st.success(f"🎉 Account created for {nickname_new}!")
-                    st.rerun
+                    st.rerun()
             else:
                 st.warning("Please enter both nickname and password.")
     st.stop()
