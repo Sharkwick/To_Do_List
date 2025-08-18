@@ -47,6 +47,11 @@ tasks_ref = db.collection("tasks").document(nickname).collection("items")
 st.sidebar.info(f"👤 Nickname: {nickname}")
 if st.sidebar.button("🔄 Refresh Page"):
     st.rerun()
+st.sidebar.markdown("---")
+if st.sidebar.button("🔒 Log Out"):
+    for key in st.session_state.keys():
+        del st.session_state[key]
+    st.experimental_rerun()
 
 # --- Delete All Tasks ---
 st.markdown("<div style='text-align: left;'>", unsafe_allow_html=True)
