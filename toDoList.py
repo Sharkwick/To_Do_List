@@ -226,7 +226,7 @@ else:
                     duration_str = str(duration).split(".")[0]  # HH:MM:SS
 
                     st.write(
-                        f"{✅ data['task']} completed on {date_str} at {time_str}. "
+                        f"✅ {data['task']} completed on {date_str} at {time_str}. "
                         f"Overall task duration {duration_str}"
                     )
                 else:
