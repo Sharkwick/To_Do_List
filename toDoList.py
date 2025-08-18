@@ -31,7 +31,7 @@ user_id = get_user_ip()
 tasks_ref = db.collection("tasks").document(user_id).collection("items")
 
 # --- UI Layout ---
-st.set_page_config(page_title="Firebase To-Do", layout="wide")
+st.set_page_config(page_title="Wickz To-Do App", layout="wide")
 
 # Delete All Tasks button (top-left)
 st.markdown("<div style='text-align: left;'>", unsafe_allow_html=True)
@@ -43,7 +43,7 @@ if st.button("🗑️ Delete All Tasks"):
 st.markdown("</div>", unsafe_allow_html=True)
 
 # Centered Title
-st.markdown("<h1 style='text-align: center;'>📝 Firebase To-Do List</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>📝Wickz Day Planner App</h1>", unsafe_allow_html=True)
 
 # --- Task Input ---
 task_input = st.text_input("Add a new task", key="task_input")
