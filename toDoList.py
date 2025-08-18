@@ -4,6 +4,7 @@ import hashlib
 from datetime import datetime
 
 import streamlit as st
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -11,19 +12,25 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # ------------------------------
+# Page config (first call)
+# ------------------------------
+st.set_page_config(
+    page_title="Wickz Day Planner",
+    layout="wide",
+    initial_sidebar_state="auto"
+)
+
+# ------------------------------
 # Firebase Initialization
 # ------------------------------
 def load_firebase_credentials():
     try:
-        # local JSON file (secrets/serviceAccountKey.json)
         return credentials.Certificate("secrets/serviceAccountKey.json")
     except FileNotFoundError:
-        # fallback to env var
-        firebase_key = os.getenv("FIREBASE_KEY_JSON")
-        if not firebase_key:
+        raw = os.getenv("FIREBASE_KEY_JSON")
+        if not raw:
             raise ValueError("Firebase credentials not found.")
-        key_dict = json.loads(firebase_key)
-        return credentials.Certificate(key_dict)
+        return credentials.Certificate(json.loads(raw))
 
 def initialize_firebase():
     if not firebase_admin._apps:
@@ -59,12 +66,24 @@ def delete_task(doc_id, task_text, tasks_ref):
     st.toast(f"🗑️ Deleted '{task_text}'.")
     st.rerun()
 
+def delete_group(group_name, tasks_ref):
+    docs = tasks_ref.where("group", "==", group_name).stream()
+    for d in docs:
+        d.reference.delete()
+    st.toast(f"🗑️ Deleted all tasks in group '{group_name}'.")
+    st.rerun()
+
+def delete_all_tasks(tasks_ref):
+    for d in tasks_ref.stream():
+        d.reference.delete()
+    st.toast("🗑️ Deleted all tasks.")
+    st.rerun()
+
 def toggle_edit(doc_id):
-    st.session_state[f"edit_{doc_id}"] = True
+    st.session_state[f"edit_{doc_id}"] = not st.session_state.get(f"edit_{doc_id}", False)
 
 def render_task(doc_id, data, tasks_ref):
     edit_key = f"edit_{doc_id}"
-    # ensure default
     if edit_key not in st.session_state:
         st.session_state[edit_key] = False
 
@@ -82,33 +101,29 @@ def render_task(doc_id, data, tasks_ref):
         st.rerun()
 
     cols[1].button(
-        label="✏️",
+        "✏️",
         key=f"edit_btn_{doc_id}",
         on_click=toggle_edit,
         args=(doc_id,)
     )
     cols[2].button(
-        label="🗑️",
+        "🗑️",
         key=f"del_btn_{doc_id}",
         on_click=delete_task,
         args=(doc_id, data["task"], tasks_ref)
     )
 
-    # edit comment mode
-    if st.session_state.get(edit_key):
-        new_c = st.text_input(
+    if st.session_state[edit_key]:
+        new_comment = st.text_input(
             "Edit comment",
             value=data.get("comment", ""),
             key=f"comm_{doc_id}"
         )
         if st.button("💾 Save", key=f"save_{doc_id}"):
-            tasks_ref.document(doc_id).update({"comment": new_c})
+            tasks_ref.document(doc_id).update({"comment": new_comment})
             st.toast("💬 Comment updated.")
             st.session_state[edit_key] = False
-            st.rerun()
-
-    # display comment when not editing
-    elif data.get("comment", ""):
+    elif data.get("comment"):
         st.caption(f"💬 {data['comment']}")
 
 # ------------------------------
@@ -122,59 +137,61 @@ if "authenticated" not in st.session_state:
 # Authentication Flow
 # ------------------------------
 if not st.session_state.authenticated:
-    st.set_page_config(page_title="Wickz Day Planner", layout="centered")
     st.title("📝 Wickz Day Planner")
-    st.markdown("#### Free forever, as long as Streamlit keeps us online 😉")
+    st.markdown("## Free forever, as long as Streamlit keeps us online 😉")
     st.markdown("## 🔐 Login or Register")
 
-    login_tab, reg_tab = st.tabs(["Login", "Register"])
-    with login_tab:
-        ln = st.text_input("Nickname", key="login_nick")
-        lp = st.text_input("Password", type="password", key="login_pwd")
-        if st.button("Login"):
-            user = get_user_doc(ln)
-            if user and user.to_dict().get("password_hash") == hash_password(lp):
-                st.session_state.authenticated = True
-                st.session_state.nickname = ln
-                st.success(f"Welcome back, {ln}!")
-                st.rerun()
-            else:
-                st.error("❌ Invalid nickname or password.")
+    login_tab, register_tab = st.tabs(["Login", "Register"])
 
-    with reg_tab:
-        rn = st.text_input("Choose a Nickname", key="reg_nick")
-        rp = st.text_input("Choose a Password", type="password", key="reg_pwd")
-        if st.button("Create Account"):
-            if rn and rp and not get_user_doc(rn):
-                db.collection("users").document(rn).set({
-                    "password_hash": hash_password(rp),
-                    "created_at": datetime.utcnow()
-                })
-                # create placeholder doc for tasks
-                db.collection("tasks").document(rn).set({"init": True})
-                st.session_state.authenticated = True
-                st.session_state.nickname = rn
-                st.success(f"🎉 Account created. Welcome, {rn}!")
-                st.rerun()
-            else:
-                st.error("❌ Nickname taken or invalid inputs.")
+    with login_tab:
+        with st.form("login_form", clear_on_submit=False):
+            nick_in = st.text_input("Nickname", key="login_nick")
+            pwd_in  = st.text_input("Password", type="password", key="login_pwd")
+            if st.form_submit_button("Login"):
+                user = get_user_doc(nick_in)
+                if user and user.to_dict().get("password_hash") == hash_password(pwd_in):
+                    st.session_state.authenticated = True
+                    st.session_state.nickname = nick_in
+                    st.success(f"Welcome back, {nick_in}!")
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid nickname or password.")
+
+    with register_tab:
+        with st.form("register_form", clear_on_submit=False):
+            nick_new = st.text_input("Choose a Nickname", key="reg_nick")
+            pwd_new  = st.text_input("Choose a Password", type="password", key="reg_pwd")
+            if st.form_submit_button("Create Account"):
+                if nick_new and pwd_new and not get_user_doc(nick_new):
+                    db.collection("users").document(nick_new).set({
+                        "password_hash": hash_password(pwd_new),
+                        "created_at": datetime.utcnow()
+                    })
+                    db.collection("tasks").document(nick_new).set({"init": True})
+                    st.session_state.authenticated = True
+                    st.session_state.nickname = nick_new
+                    st.success(f"🎉 Account created. Welcome, {nick_new}!")
+                    st.rerun()
+                else:
+                    st.error("❌ Nickname taken or invalid inputs.")
+
     st.stop()
 
 # ------------------------------
 # Main App Interface
 # ------------------------------
-st.set_page_config(page_title="Wickz Day Planner", layout="wide")
-nickname = st.session_state.nickname
+nickname  = st.session_state.nickname
 tasks_ref = db.collection("tasks").document(nickname).collection("items")
 
 st.markdown("<h1 style='text-align:center;'>📝 Wickz Day Planner</h1>", unsafe_allow_html=True)
 
-# Sidebar: user, refresh, logout, pie chart
+# ------------------------------
+# Sidebar: Overview + Pie Chart (with "All" option)
+# ------------------------------
 with st.sidebar:
     st.markdown("## 👤 User")
     st.write(f"`{nickname}`")
     st.markdown("---")
-
     if st.button("🔁 Refresh"):
         st.rerun()
     if st.button("🚪 Logout"):
@@ -184,52 +201,71 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("## 📊 Tasks Overview")
 
-    all_docs = list(tasks_ref.stream())
-    stats = {}
-    for d in all_docs:
+    docs = list(tasks_ref.stream())
+    group_stats = {}
+    for d in docs:
         info = d.to_dict()
-        grp = info.get("group", "General")
+        grp  = info.get("group", "General")
         done = info.get("completed", False)
-        stats.setdefault(grp, {"total": 0, "completed": 0})
-        stats[grp]["total"] += 1
-        stats[grp]["completed"] += int(done)
+        group_stats.setdefault(grp, {"total": 0, "completed": 0})
+        group_stats[grp]["total"]     += 1
+        group_stats[grp]["completed"] += int(done)
 
-    if stats:
-        sel = st.selectbox("Select group", list(stats.keys()), key="pie_group")
-        t = stats[sel]["total"]
-        c = stats[sel]["completed"]
-        rem = t - c
+    # add "All"
+    options = ["All"] + list(group_stats.keys())
+    sel = st.selectbox("Select group to view", options, key="pie_group")
 
-        fig, ax = plt.subplots(figsize=(4, 4), facecolor="white")
-        ax.pie([c, rem],
-               labels=["Completed", "Remaining"],
-               autopct="%1.0f%%",
-               startangle=90,
-               colors=sns.color_palette("muted", 2),
-               wedgeprops={"edgecolor": "white", "linewidth": 1.5})
+    if sel == "All":
+        total = sum(v["total"] for v in group_stats.values())
+        comp  = sum(v["completed"] for v in group_stats.values())
+    else:
+        total = group_stats[sel]["total"]
+        comp  = group_stats[sel]["completed"]
+
+    rem = total - comp
+
+    if total > 0:
+        fig, ax = plt.subplots(figsize=(4,4), facecolor="white")
+        ax.pie(
+            [comp, rem],
+            labels=["Completed","Remaining"],
+            autopct="%1.0f%%",
+            startangle=90,
+            colors=sns.color_palette("muted", 2),
+            wedgeprops={"edgecolor":"white","linewidth":1.5}
+        )
         ax.set_title(f"{sel} Tasks", pad=12)
         ax.axis("equal")
         st.pyplot(fig)
     else:
         st.info("No tasks to summarize.")
 
+# ------------------------------
 # Add New Task
+# ------------------------------
 st.markdown("## ➕ Add New Task")
 c1, c2 = st.columns(2)
-t_txt = c1.text_input("Task description", key="new_task")
-g_sel = c2.selectbox("Choose group", ["Work", "Personal", "General"], key="group_sel")
-g_cus = c2.text_input("Or custom group", key="group_custom")
-com = st.text_area("Optional comment", key="new_comment")
+task_txt   = c1.text_input("Task description", key="new_task")
+group_sel  = c2.selectbox("Choose group", ["Work","Personal","General"], key="group_sel")
+group_cust = c2.text_input("Or custom group", key="group_custom")
+comment    = st.text_area("Optional comment", key="new_comment")
 
 if st.button("Add Task"):
-    g_final = g_cus.strip() or g_sel
-    if t_txt.strip():
-        add_new_task(t_txt.strip(), g_final, com.strip(), tasks_ref)
+    final_grp = group_cust.strip() or group_sel
+    if task_txt.strip():
+        add_new_task(task_txt.strip(), final_grp, comment.strip(), tasks_ref)
     else:
         st.error("❌ Task description cannot be empty.")
 
-# Display All Tasks
+# ------------------------------
+# All Tasks (with delete group/all buttons)
+# ------------------------------
 st.markdown("## 📋 All Tasks")
+
+# Delete all tasks
+if st.button("🗑️ Delete All Tasks"):
+    delete_all_tasks(tasks_ref)
+
 docs = list(tasks_ref.stream())
 if not docs:
     st.info("No tasks yet.")
@@ -237,37 +273,49 @@ else:
     grouped = {}
     for d in docs:
         info = d.to_dict()
-        grp = info.get("group", "General")
+        grp  = info.get("group","General")
         grouped.setdefault(grp, []).append((d.id, info))
 
     for grp, items in grouped.items():
-        with st.expander(f"📂 {grp}", expanded=True):
+        with st.expander(f"📂 {grp} ({len(items)})", expanded=True):
+            # delete this group
+            if st.button(f"🗑️ Delete Group '{grp}'", key=f"del_group_{grp}"):
+                delete_group(grp, tasks_ref)
+
             for doc_id, info in items:
                 render_task(doc_id, info, tasks_ref)
 
-# Completed Tasks with Timestamps & Duration
+# ------------------------------
+# Completed Tasks as Collapsible Tables
+# ------------------------------
 st.markdown("## ✅ Completed Tasks")
-done_docs = list(tasks_ref.where("completed", "==", True).stream())
-if not done_docs:
+
+completed_docs = list(tasks_ref.where("completed", "==", True).stream())
+if not completed_docs:
     st.info("No completed tasks yet.")
 else:
-    comp_grp = {}
-    for d in done_docs:
+    comp_by_group = {}
+    for d in completed_docs:
         info = d.to_dict()
         grp = info.get("group", "General")
-        comp_grp.setdefault(grp, []).append(info)
+        ts = info.get("timestamp")
+        ct = info.get("completed_time")
+        if isinstance(ts, datetime) and isinstance(ct, datetime):
+            added_date   = ts.strftime("%Y-%m-%d %H:%M:%S")
+            completed_date = ct.strftime("%Y-%m-%d %H:%M:%S")
+            duration     = str(ct - ts).split(".")[0]
+        else:
+            added_date = completed_date = duration = "N/A"
 
-    for grp, items in comp_grp.items():
-        with st.expander(f"{grp} ({len(items)})", expanded=False):
-            for info in items:
-                ts = info.get("timestamp")
-                ct = info.get("completed_time")
-                if isinstance(ts, datetime) and isinstance(ct, datetime):
-                    date = ct.strftime("%Y-%m-%d")
-                    time = ct.strftime("%H:%M:%S")
-                    dur = str(ct - ts).split(".")[0]
-                    st.write(
-                        f"{info['task']} — completed on {date} at {time}. Duration: {dur}"
-                    )
-                else:
-                    st.write(f"{info['task']} — completed (timestamp unavailable).")
+        comp_by_group.setdefault(grp, []).append({
+            "Task Name": info.get("task",""),
+            "Comment": info.get("comment",""),
+            "Added Date": added_date,
+            "Completed Date": completed_date,
+            "Duration": duration
+        })
+
+    for grp, rows in comp_by_group.items():
+        with st.expander(f"{grp} ({len(rows)})", expanded=False):
+            df = pd.DataFrame(rows)
+            st.table(df)
