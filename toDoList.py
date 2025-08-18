@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 import json
 
-# --- Firebase Setup via Environment Variable ---
+# --- Firebase Setup ---
 firebase_json = os.getenv("FIREBASE_KEY_JSON")
 if not firebase_json:
     st.error("❌ Firebase credentials not found. Please set FIREBASE_KEY_JSON in your environment.")
@@ -17,24 +17,26 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# --- Nickname Input ---
+# --- Page Config ---
 st.set_page_config(page_title="Wickz To-Do App", layout="wide")
 st.markdown("<h1 style='text-align: center;'>📝 Wickz Day Planner App</h1>", unsafe_allow_html=True)
 
+# --- Nickname Auth ---
 if "nickname" not in st.session_state:
     st.session_state.nickname = ""
 
 if not st.session_state.nickname:
-    nickname_input = st.text_input("Enter your nickname to start", key="nickname_input")
+    nickname_input = st.text_input("Enter your nickname to continue", key="nickname_input")
     if nickname_input:
         nickname_input = nickname_input.strip()
-        doc_ref = db.collection("tasks").document(nickname_input)
-        if doc_ref.get().exists:
-            st.error("❌ Nickname already taken. Please choose a different one.")
-        else:
+        user_doc = db.collection("tasks").document(nickname_input)
+        if user_doc.get().exists:
             st.session_state.nickname = nickname_input
-            st.success(f"✅ Welcome, {nickname_input}!")
-            doc_ref.set({"created": datetime.now()})  # Initialize user document
+            st.success(f"✅ Welcome back, {nickname_input}!")
+        else:
+            user_doc.set({"created": datetime.now()})
+            st.session_state.nickname = nickname_input
+            st.success(f"🎉 New nickname created: {nickname_input}")
     st.stop()
 
 nickname = st.session_state.nickname
@@ -44,8 +46,7 @@ st.sidebar.info(f"👤 Nickname: {nickname}")
 # --- Delete All Tasks ---
 st.markdown("<div style='text-align: left;'>", unsafe_allow_html=True)
 if st.button("🗑️ Delete All Tasks"):
-    all_tasks = tasks_ref.stream()
-    for doc in all_tasks:
+    for doc in tasks_ref.stream():
         tasks_ref.document(doc.id).delete()
     st.toast("🧹 All tasks deleted!", icon="🗑️")
 st.markdown("</div>", unsafe_allow_html=True)
