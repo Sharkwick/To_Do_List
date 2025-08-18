@@ -199,17 +199,37 @@ else:
 
 # Completed Tasks Section
 st.markdown("## ✅ Completed Tasks")
-completed = list(tasks_ref.where("completed", "==", True).stream())
-if not completed:
+
+# Fetch completed tasks
+completed_docs = list(tasks_ref.where("completed", "==", True).stream())
+
+if not completed_docs:
     st.info("No completed tasks yet.")
 else:
-    comp_group = {}
-    for doc in completed:
-        d = doc.to_dict()
-        grp = d.get("group", "General")
-        comp_group.setdefault(grp, []).append(d["task"])
+    # Group by task group (optional)
+    completed_grouped = {}
+    for doc in completed_docs:
+        data = doc.to_dict()
+        grp = data.get("group", "General")
+        completed_grouped.setdefault(grp, []).append(data)
 
-    for grp, tasks in comp_group.items():
-        with st.expander(f"{grp} ({len(tasks)})", expanded=False):
-            for t in tasks:
-                st.markdown(f"- {t}")
+    # Display each completed task with date, time, and duration
+    for grp, items in completed_grouped.items():
+        with st.expander(f"{grp} ({len(items)})", expanded=False):
+            for data in items:
+                created_at = data.get("timestamp")
+                completed_at = data.get("completed_time")
+                
+                # Ensure we have proper datetime objects
+                if isinstance(created_at, datetime.datetime) and isinstance(completed_at, datetime.datetime):
+                    date_str = completed_at.strftime("%Y-%m-%d")
+                    time_str = completed_at.strftime("%H:%M:%S")
+                    duration = completed_at - created_at
+                    duration_str = str(duration).split(".")[0]  # HH:MM:SS
+                    st.write(
+                        f"{data['task']} completed on {date_str} at {time_str}. "
+                        f"Overall task duration {duration_str}"
+                    )
+                else:
+                    st.write(f"{data['task']} completed (timestamp unavailable).")
+
