@@ -58,6 +58,7 @@ if "authenticated" not in st.session_state:
 # ------------------------------
 if not st.session_state.authenticated:
     st.title("Wickz Day Planner")
+    st.markdown("### For All Your Planning Needs. It's Free Forever As Long as Stremlit Keeps the app online 😉")
     st.markdown("## 🔐 Login or Register")
     login_tab, register_tab = st.tabs(["Login", "Register"])
     with login_tab:
