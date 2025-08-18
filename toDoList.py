@@ -58,12 +58,12 @@ if "authenticated" not in st.session_state:
 #  Authentication Flow
 # ------------------------------
 if not st.session_state.authenticated:
-    st.title("Wickz Day Planner")
     st.image(
-    "https://photos.app.goo.gl/VyawThN5M6H2Jqi38",
+    "https://ibb.co/8DZ2PvJW",
     caption="Logo",
     width=300  # fixed width in pixels
     )
+    st.title("Wickz Day Planner")
     st.markdown("### For All Your Planning Needs. It's Free Forever As Long as Stremlit Keeps the app online 😉")
     st.markdown("## 🔐 Login or Register")
     login_tab, register_tab = st.tabs(["Login", "Register"])
