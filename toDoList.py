@@ -58,7 +58,7 @@ if "authenticated" not in st.session_state:
 # ------------------------------
 if not st.session_state.authenticated:
     st.title("Wickz Day Planner")
-    st.Subheader("🔐 Login or Register")
+    st.markdown("## 🔐 Login or Register")
     login_tab, register_tab = st.tabs(["Login", "Register"])
     with login_tab:
         nick_in   = st.text_input("Nickname", key="login_nick")
