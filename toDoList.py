@@ -20,15 +20,15 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 # --- Get User IP and Hash It ---
-def get_public_ip():
+def get_user_ip():
     try:
-        ip = requests.get("https://api.ipify.org?format=json")
-        response.raise_for_status()  # Raise an exception for bad status codes
-        return response.json()["ip"]
-    except requests.exceptions.RequestException as e:
-        return None
+        response = requests.get("https://ipinfo.io/json", timeout=5)
+        ip = response.json().get("ip", "unknown")
+        return hashlib.sha256(ip.encode()).hexdigest()
+    except Exception as e:
+        return "unknown_user"
 
-user_id = get_public_ip()
+user_id = get_user_ip()
 tasks_ref = db.collection("tasks").document(user_id).collection("items")
 
 st.sidebar.info(f"🔒 User ID: {user_id}")
