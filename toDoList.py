@@ -30,7 +30,7 @@ def get_user_ip():
 user_id = get_user_ip()
 tasks_ref = db.collection("tasks").document(user_id).collection("items")
 
-st.markdown("###### user_id is used to store data")
+st.sidebar.info(f"🔒 User ID: {user_id}")
 
 # --- UI Layout ---
 st.set_page_config(page_title="Wickz To-Do App", layout="wide")
