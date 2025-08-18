@@ -218,4 +218,4 @@ for doc in completed_tasks:
     completed_grouped.setdefault(group, []).append(data)
 
 for group, items in completed_grouped.items():
-    with st.expander(f"📂 {group}", expanded=False
+    with st.expander(f"📂 {group}", expanded=False)
