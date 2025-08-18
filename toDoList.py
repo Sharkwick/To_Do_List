@@ -213,7 +213,7 @@ else:
         completed_grouped.setdefault(grp, []).append(d)
 
     for grp, items in completed_grouped.items():
-        with st.expander(f"{grp} ({len(items)})", expanded=False):
+        with st.expander(f"✅ {grp} ({len(items)})", expanded=False):
             for data in items:
                 created_at   = data.get("timestamp")
                 completed_at = data.get("completed_time")
@@ -226,8 +226,8 @@ else:
                     duration_str = str(duration).split(".")[0]  # HH:MM:SS
 
                     st.write(
-                        f"{data['task']} completed on {date_str} at {time_str}. "
+                        f"{✅ data['task']} completed on {date_str} at {time_str}. "
                         f"Overall task duration {duration_str}"
                     )
                 else:
-                    st.write(f"{data['task']} completed (timestamp unavailable).")
+                    st.write(f"✅ {data['task']} completed (timestamp unavailable).")
