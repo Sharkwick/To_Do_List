@@ -47,7 +47,6 @@ if not st.session_state.authenticated:
                     st.session_state.nickname = nickname_login
                     st.session_state.authenticated = True
                     st.success(f"✅ Welcome back, {nickname_login}!")
-                    st.rerun()
                 else:
                     st.error("❌ Incorrect password.")
             else:
@@ -70,7 +69,6 @@ if not st.session_state.authenticated:
                     st.session_state.nickname = nickname_new
                     st.session_state.authenticated = True
                     st.success(f"🎉 Account created for {nickname_new}!")
-                    st.rerun()
             else:
                 st.warning("Please enter both nickname and password.")
     st.stop()
@@ -78,58 +76,80 @@ if not st.session_state.authenticated:
 # --- Sidebar Controls ---
 st.sidebar.info(f"👤 Logged in as: {st.session_state.nickname}")
 if st.sidebar.button("🔄 Refresh Page"):
-    st.rerun()
+    st.experimental_rerun()
 if st.sidebar.button("🔒 Log Out"):
     for key in st.session_state.keys():
         del st.session_state[key]
-    st.rerun()
+    st.experimental_rerun()
 
-# --- Task Logic ---
+# --- Task Reference ---
 nickname = st.session_state.nickname
 tasks_ref = db.collection("tasks").document(nickname).collection("items")
 
-# --- Delete All Tasks ---
-st.markdown("<div style='text-align: left;'>", unsafe_allow_html=True)
-if st.button("🗑️ Delete All Tasks"):
-    for doc in tasks_ref.stream():
-        tasks_ref.document(doc.id).delete()
-    st.toast("🧹 All tasks deleted!", icon="🗑️")
-st.markdown("</div>", unsafe_allow_html=True)
+# --- Top Layout with Chart ---
+col_left, col_right = st.columns([2, 1])
 
-# --- Task Input ---
-task_input = st.text_input("Add a new task", key="task_input")
-existing_groups = ["Work", "Personal", "General"]
-selected_group = st.selectbox("Choose a group", options=existing_groups)
-custom_group = st.text_input("Or enter a custom group", key="task_group")
-comment_input = st.text_area("Add a comment (optional)", key="task_comment")
+with col_right:
+    task_docs = tasks_ref.stream()
+    group_stats = {}
+    for doc in task_docs:
+        data = doc.to_dict()
+        group = data.get("group", "General")
+        completed = data.get("completed", False)
+        if group not in group_stats:
+            group_stats[group] = {"total": 0, "completed": 0}
+        group_stats[group]["total"] += 1
+        if completed:
+            group_stats[group]["completed"] += 1
 
-def add_task():
-    task = st.session_state["task_input"].strip()
-    group = st.session_state["task_group"].strip() or selected_group
-    comment = st.session_state["task_comment"].strip()
-    if task:
-        task_ref = tasks_ref.document(task)
-        if not task_ref.get().exists:
-            task_ref.set({
-                "task": task,
-                "group": group,
-                "comment": comment,
-                "timestamp": datetime.now(),
-                "completed": False
-            })
-            st.toast(f"✅ '{task}' added to '{group}' group!", icon="📝")
-        else:
-            st.error(f"'{task}' already exists!")
-    st.session_state["task_input"] = ""
-    st.session_state["task_group"] = ""
-    st.session_state["task_comment"] = ""
+    df = pd.DataFrame([
+        {"Group": group, "Total Tasks": stats["total"], "Completed Tasks": stats["completed"]}
+        for group, stats in group_stats.items()
+    ])
+    if not df.empty:
+        melted_df = df.melt(id_vars="Group", var_name="Task Type", value_name="Count")
+        sns.set(style="whitegrid")
+        fig, ax = plt.subplots(figsize=(6, 4))
+        sns.barplot(data=melted_df, x="Group", y="Count", hue="Task Type", ax=ax, palette="viridis")
+        ax.set_title("📊 Task Summary by Group")
+        ax.set_ylabel("Number of Tasks")
+        ax.set_xlabel("Group")
+        st.pyplot(fig)
 
-st.button("Submit Task", on_click=add_task)
+with col_left:
+    st.markdown("### ➕ Add a New Task")
+    task_input = st.text_input("Task", key="task_input")
+    existing_groups = ["Work", "Personal", "General"]
+    selected_group = st.selectbox("Choose a group", options=existing_groups)
+    custom_group = st.text_input("Or enter a custom group", key="task_group")
+    comment_input = st.text_area("Add a comment (optional)", key="task_comment")
+
+    def add_task():
+        task = st.session_state["task_input"].strip()
+        group = st.session_state["task_group"].strip() or selected_group
+        comment = st.session_state["task_comment"].strip()
+        if task:
+            task_ref = tasks_ref.document(task)
+            if not task_ref.get().exists:
+                task_ref.set({
+                    "task": task,
+                    "group": group,
+                    "comment": comment,
+                    "timestamp": datetime.now(),
+                    "completed": False
+                })
+                st.toast(f"✅ '{task}' added to '{group}' group!", icon="📝")
+            else:
+                st.error(f"'{task}' already exists!")
+        st.session_state["task_input"] = ""
+        st.session_state["task_group"] = ""
+        st.session_state["task_comment"] = ""
+
+    st.button("Submit Task", on_click=add_task)
 
 # --- Display Tasks ---
 st.markdown("<h3 style='text-align: center;'>📃 All Tasks</h3>", unsafe_allow_html=True)
 tasks = tasks_ref.stream()
-
 grouped_tasks = {}
 for doc in tasks:
     data = doc.to_dict()
@@ -191,7 +211,6 @@ for group, items in grouped_tasks.items():
 # --- Completed Tasks ---
 st.markdown("<h3 style='text-align: center;'>✅ Completed Tasks</h3>", unsafe_allow_html=True)
 completed_tasks = tasks_ref.where("completed", "==", True).stream()
-
 completed_grouped = {}
 for doc in completed_tasks:
     data = doc.to_dict()
@@ -199,48 +218,4 @@ for doc in completed_tasks:
     completed_grouped.setdefault(group, []).append(data)
 
 for group, items in completed_grouped.items():
-    with st.expander(f"📂 {group}", expanded=False):
-        for data in items:
-            task = data["task"]
-            start = data["timestamp"]
-            end = data.get("completed_time", datetime.now())
-            duration = end - start
-            minutes, seconds = divmod(int(duration.total_seconds()), 60)
-            completed_str = end.strftime("%d/%m/%y %H:%M:%S")
-            comment = data.get("comment", "")
-            st.write(f"✔️ {task} — completed on {completed_str} in {minutes}m {seconds}s")
-            if comment:
-                st.caption(f"💬 {comment}")
-
-with st.sidebar:
-    st.markdown("### 📊 Task Summary")
-
-    task_docs = tasks_ref.stream()
-    group_stats = {}
-
-    for doc in task_docs:
-        data = doc.to_dict()
-        group = data.get("group", "General")
-        completed = data.get("completed", False)
-        if group not in group_stats:
-            group_stats[group] = {"total": 0, "completed": 0}
-        group_stats[group]["total"] += 1
-        if completed:
-            group_stats[group]["completed"] += 1
-
-    df = pd.DataFrame([
-        {"Group": group, "Total Tasks": stats["total"], "Completed Tasks": stats["completed"]}
-        for group, stats in group_stats.items()
-    ])
-
-    if not df.empty:
-        melted_df = df.melt(id_vars="Group", var_name="Task Type", value_name="Count")
-        fig, ax = plt.subplots(figsize=(4, 3))
-        sns.set(style="whitegrid")
-        sns.barplot(data=melted_df, x="Group", y="Count", hue="Task Type", ax=ax, palette="viridis")
-        ax.set_title("Tasks by Group", fontsize=10)
-        ax.set_ylabel("")
-        ax.set_xlabel("")
-        ax.tick_params(labelsize=8)
-        st.pyplot(fig)
-
+    with st.expander(f"📂 {group}", expanded=False
