@@ -75,11 +75,11 @@ if not st.session_state.authenticated:
 # --- Sidebar Controls ---
 st.sidebar.info(f"👤 Logged in as: {st.session_state.nickname}")
 if st.sidebar.button("🔄 Refresh Page"):
-    st.experimental_rerun()
+    st.rerun()
 if st.sidebar.button("🔒 Log Out"):
     for key in st.session_state.keys():
         del st.session_state[key]
-    st.experimental_rerun()
+    st.rerun()
 
 # --- Task Logic ---
 nickname = st.session_state.nickname
