@@ -85,10 +85,6 @@ if not st.session_state.authenticated:
                 st.error("Nickname already taken.")
     st.stop()
 
-# ------------------------------
-#   Main App Interface
-# ------------------------------
-
 st.set_page_config(page_title="Wickz Day Planner", layout="wide")
 st.markdown("<h1 style='text-align:center;'>📝 Wickz Day Planner</h1>", unsafe_allow_html=True)
 
