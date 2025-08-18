@@ -45,6 +45,8 @@ if "nickname" not in st.session_state or not st.session_state.nickname:
 nickname = st.session_state.nickname
 tasks_ref = db.collection("tasks").document(nickname).collection("items")
 st.sidebar.info(f"👤 Nickname: {nickname}")
+if st.sidebar.button("🔄 Refresh Page"):
+    st.rerun()
 
 # --- Delete All Tasks ---
 st.markdown("<div style='text-align: left;'>", unsafe_allow_html=True)
