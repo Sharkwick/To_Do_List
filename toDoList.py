@@ -10,6 +10,7 @@ import seaborn as sns
 
 import firebase_admin
 from firebase_admin import credentials, firestore
+from PIL import Image
 
 # ------------------------------
 #  Firebase Initialization
@@ -58,6 +59,11 @@ if "authenticated" not in st.session_state:
 # ------------------------------
 if not st.session_state.authenticated:
     st.title("Wickz Day Planner")
+    st.image(
+    "https://photos.app.goo.gl/VyawThN5M6H2Jqi38",
+    caption="Logo",
+    width=300  # fixed width in pixels
+    )
     st.markdown("### For All Your Planning Needs. It's Free Forever As Long as Stremlit Keeps the app online 😉")
     st.markdown("## 🔐 Login or Register")
     login_tab, register_tab = st.tabs(["Login", "Register"])
