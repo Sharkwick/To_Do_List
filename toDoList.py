@@ -5,6 +5,9 @@ from datetime import datetime
 import hashlib
 import os
 import json
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # --- Firebase Setup ---
 firebase_json = os.getenv("FIREBASE_KEY_JSON")
@@ -208,3 +211,36 @@ for group, items in completed_grouped.items():
             st.write(f"✔️ {task} — completed on {completed_str} in {minutes}m {seconds}s")
             if comment:
                 st.caption(f"💬 {comment}")
+
+with st.sidebar:
+    st.markdown("### 📊 Task Summary")
+
+    task_docs = tasks_ref.stream()
+    group_stats = {}
+
+    for doc in task_docs:
+        data = doc.to_dict()
+        group = data.get("group", "General")
+        completed = data.get("completed", False)
+        if group not in group_stats:
+            group_stats[group] = {"total": 0, "completed": 0}
+        group_stats[group]["total"] += 1
+        if completed:
+            group_stats[group]["completed"] += 1
+
+    df = pd.DataFrame([
+        {"Group": group, "Total Tasks": stats["total"], "Completed Tasks": stats["completed"]}
+        for group, stats in group_stats.items()
+    ])
+
+    if not df.empty:
+        melted_df = df.melt(id_vars="Group", var_name="Task Type", value_name="Count")
+        fig, ax = plt.subplots(figsize=(4, 3))
+        sns.set(style="whitegrid")
+        sns.barplot(data=melted_df, x="Group", y="Count", hue="Task Type", ax=ax, palette="viridis")
+        ax.set_title("Tasks by Group", fontsize=10)
+        ax.set_ylabel("")
+        ax.set_xlabel("")
+        ax.tick_params(labelsize=8)
+        st.pyplot(fig)
+
