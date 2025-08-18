@@ -34,10 +34,12 @@ if "nickname" not in st.session_state or not st.session_state.nickname:
             st.session_state.nickname = nickname_input
             st.success(f"✅ Welcome back, {nickname_input}!")
         else:
-            user_doc.set({"created": datetime.now()})
-            st.session_state.nickname = nickname_input
-            st.success(f"🎉 New nickname created: {nickname_input}")
-    else:
+            st.warning(f"⚠️ Nickname '{nickname_input}' not found.")
+            if st.checkbox("Create new nickname?", key="confirm_create"):
+                user_doc.set({"created": datetime.now()})
+                st.session_state.nickname = nickname_input
+                st.success(f"🎉 New nickname created: {nickname_input}")
+    if "nickname" not in st.session_state or not st.session_state.nickname:
         st.stop()
 
 nickname = st.session_state.nickname
