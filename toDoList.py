@@ -51,7 +51,7 @@ st.sidebar.markdown("---")
 if st.sidebar.button("🔒 Log Out"):
     for key in st.session_state.keys():
         del st.session_state[key]
-    st.experimental_rerun()
+    st.rerun()
 
 # --- Delete All Tasks ---
 st.markdown("<div style='text-align: left;'>", unsafe_allow_html=True)
