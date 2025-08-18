@@ -11,10 +11,6 @@ import seaborn as sns
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# ------------------------------
-#   Firebase Initialization
-# ------------------------------
-
 firebase_key = os.getenv("FIREBASE_KEY_JSON")
 if not firebase_key:
     st.error("Firebase credentials not found. Set FIREBASE_KEY_JSON.")
@@ -27,10 +23,6 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
-
-# ------------------------------
-#   Utility Functions
-# ------------------------------
 
 def hash_password(password: str) -> str:
     """Return SHA256 hash of the password."""
@@ -53,17 +45,9 @@ def add_new_task(task: str, group: str, comment: str, tasks_ref):
     })
     st.toast(f"Added '{task}' to '{group}'.")
 
-# ------------------------------
-#   Session State Defaults
-# ------------------------------
-
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
     st.session_state.nickname = ""
-
-# ------------------------------
-#   Authentication Flow
-# ------------------------------
 
 if not st.session_state.authenticated:
     st.title("🔐 Wickz Day Planner — Login or Register")
@@ -78,7 +62,7 @@ if not st.session_state.authenticated:
                 st.session_state.authenticated = True
                 st.session_state.nickname = nick_in
                 st.success(f"Welcome back, {nick_in}!")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Invalid nickname or password.")
 
@@ -96,7 +80,7 @@ if not st.session_state.authenticated:
                 st.session_state.authenticated = True
                 st.session_state.nickname = nick_new
                 st.success(f"Account created. Welcome, {nick_new}!")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Nickname already taken.")
     st.stop()
@@ -117,10 +101,10 @@ with st.sidebar:
     st.write(f"`{nickname}`")
     st.markdown("---")
     if st.button("🔁 Refresh"):
-        st.experimental_rerun()
+        st.rerun()
     if st.button("🚪 Logout"):
         st.session_state.clear()
-        st.experimental_rerun()
+        st.rerun()
     st.markdown("---")
     st.markdown("## 📊 Task Summary")
 
@@ -191,7 +175,7 @@ else:
                         "completed": done,
                         "completed_time": datetime.utcnow() if done else firestore.DELETE_FIELD
                     })
-                    st.experimental_rerun()
+                    st.rerun()
 
                 if cols[1].button("✏️", key=f"edit_{doc_id}"):
                     st.session_state[f"edit_mode_{doc_id}"] = True
@@ -199,7 +183,7 @@ else:
                 if cols[2].button("🗑️", key=f"del_{doc_id}"):
                     tasks_ref.document(doc_id).delete()
                     st.toast(f"Deleted '{data['task']}'.")
-                    st.experimental_rerun()
+                    st.rerun()
 
                 # Edit comment
                 if st.session_state.get(f"edit_mode_{doc_id}", False):
