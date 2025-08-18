@@ -2,6 +2,7 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime
+import hashlib
 import os
 import json
 
@@ -21,40 +22,66 @@ db = firestore.client()
 st.set_page_config(page_title="Wickz To-Do App", layout="wide")
 st.markdown("<h1 style='text-align: center;'>📝 Wickz Day Planner App</h1>", unsafe_allow_html=True)
 
-# --- Nickname Auth ---
-if "nickname" not in st.session_state:
+# --- Auth Logic ---
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+if "nickname" not in st.session_state or "authenticated" not in st.session_state:
     st.session_state.nickname = ""
+    st.session_state.authenticated = False
 
-if "nickname" not in st.session_state or not st.session_state.nickname:
-    nickname_input = st.text_input("Enter your nickname", key="nickname_input")
-    if st.button("➡️ Continue"):
-        nickname_input = nickname_input.strip()
-        if nickname_input:
-            user_doc = db.collection("tasks").document(nickname_input)
-            if user_doc.get().exists:
-                st.session_state.nickname = nickname_input
-                st.success(f"✅ Welcome back, {nickname_input}!")
-                st.rerun()
+if not st.session_state.authenticated:
+    tab_login, tab_register = st.tabs(["🔐 Login", "🆕 Create Account"])
+
+    with tab_login:
+        nickname_login = st.text_input("Nickname", key="login_nickname")
+        password_login = st.text_input("Password", type="password", key="login_password")
+        if st.button("➡️ Login"):
+            user_doc = db.collection("users").document(nickname_login).get()
+            if user_doc.exists:
+                stored_hash = user_doc.to_dict().get("password_hash")
+                if stored_hash == hash_password(password_login):
+                    st.session_state.nickname = nickname_login
+                    st.session_state.authenticated = True
+                    st.success(f"✅ Welcome back, {nickname_login}!")
+                else:
+                    st.error("❌ Incorrect password.")
             else:
-                st.warning(f"⚠️ Nickname '{nickname_input}' not found.")
-                if st.checkbox("Create new nickname?", key="confirm_create"):
-                    user_doc.set({"created": datetime.now()})
-                    st.session_state.nickname = nickname_input
-                    st.success(f"🎉 New nickname created: {nickname_input}")
-                    st.rerun()
-    if "nickname" not in st.session_state or not st.session_state.nickname:
-        st.stop()
+                st.error("❌ Nickname not found.")
 
-nickname = st.session_state.nickname
-tasks_ref = db.collection("tasks").document(nickname).collection("items")
-st.sidebar.info(f"👤 Nickname: {nickname}")
+    with tab_register:
+        nickname_new = st.text_input("New Nickname", key="register_nickname")
+        password_new = st.text_input("New Password", type="password", key="register_password")
+        if st.button("🆕 Create Account"):
+            if nickname_new and password_new:
+                user_ref = db.collection("users").document(nickname_new)
+                if user_ref.get().exists:
+                    st.error("❌ Nickname already exists.")
+                else:
+                    user_ref.set({
+                        "password_hash": hash_password(password_new),
+                        "created": datetime.now()
+                    })
+                    db.collection("tasks").document(nickname_new).set({"created": datetime.now()})
+                    st.session_state.nickname = nickname_new
+                    st.session_state.authenticated = True
+                    st.success(f"🎉 Account created for {nickname_new}!")
+            else:
+                st.warning("Please enter both nickname and password.")
+    st.stop()
+
+# --- Sidebar Controls ---
+st.sidebar.info(f"👤 Logged in as: {st.session_state.nickname}")
 if st.sidebar.button("🔄 Refresh Page"):
-    st.rerun()
-st.sidebar.markdown("---")
+    st.experimental_rerun()
 if st.sidebar.button("🔒 Log Out"):
     for key in st.session_state.keys():
         del st.session_state[key]
-    st.rerun()
+    st.experimental_rerun()
+
+# --- Task Logic ---
+nickname = st.session_state.nickname
+tasks_ref = db.collection("tasks").document(nickname).collection("items")
 
 # --- Delete All Tasks ---
 st.markdown("<div style='text-align: left;'>", unsafe_allow_html=True)
