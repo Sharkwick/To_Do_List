@@ -1,4 +1,4 @@
 firebase-admin
-matplotlib.pyplot
+matplotlib
 seaborn
 pandas
