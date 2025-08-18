@@ -26,19 +26,22 @@ if "nickname" not in st.session_state:
     st.session_state.nickname = ""
 
 if "nickname" not in st.session_state or not st.session_state.nickname:
-    nickname_input = st.text_input("Enter your nickname to continue", key="nickname_input")
-    if nickname_input:
+    nickname_input = st.text_input("Enter your nickname", key="nickname_input")
+    if st.button("➡️ Continue"):
         nickname_input = nickname_input.strip()
-        user_doc = db.collection("tasks").document(nickname_input)
-        if user_doc.get().exists:
-            st.session_state.nickname = nickname_input
-            st.success(f"✅ Welcome back, {nickname_input}!")
-        else:
-            st.warning(f"⚠️ Nickname '{nickname_input}' not found.")
-            if st.checkbox("Create new nickname?", key="confirm_create"):
-                user_doc.set({"created": datetime.now()})
+        if nickname_input:
+            user_doc = db.collection("tasks").document(nickname_input)
+            if user_doc.get().exists:
                 st.session_state.nickname = nickname_input
-                st.success(f"🎉 New nickname created: {nickname_input}")
+                st.success(f"✅ Welcome back, {nickname_input}!")
+                st.rerun()
+            else:
+                st.warning(f"⚠️ Nickname '{nickname_input}' not found.")
+                if st.checkbox("Create new nickname?", key="confirm_create"):
+                    user_doc.set({"created": datetime.now()})
+                    st.session_state.nickname = nickname_input
+                    st.success(f"🎉 New nickname created: {nickname_input}")
+                    st.rerun()
     if "nickname" not in st.session_state or not st.session_state.nickname:
         st.stop()
 
