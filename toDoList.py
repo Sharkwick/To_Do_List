@@ -1,7 +1,7 @@
 import os
 import json
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -32,6 +32,19 @@ def initialize_firebase():
         cred = load_firebase_credentials()
         firebase_admin.initialize_app(cred)
 
+st.markdown("""
+    <style>
+    .custom-button {
+        font-size: 18px;
+        font-weight: bold;
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 12px;
+        padding: 8px 24px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 initialize_firebase()
 db = firestore.client()
 
@@ -43,25 +56,35 @@ def get_user_doc(nick: str):
     doc = db.collection("users").document(nick).get()
     return doc if doc.exists else None
 
-def add_new_task(text: str, group: str, comment: str, tasks_ref):
-    task_id = str(int(datetime.utcnow().timestamp() * 1000))
-    tasks_ref.document(task_id).set({
-        "task": text,
+
+# Correctly formatted timestamp for Sri Lanka UTC+5:30
+def format_task_timestamp(ts: datetime) -> str:
+    if not isinstance(ts, datetime):
+        return "N/A"
+    tz_offset = timedelta(hours=5, minutes=30)
+    local_time = ts + tz_offset
+    return local_time.strftime("%d %B %Y at %H:%M:%S UTC+5:30")
+
+def add_new_task(name, group, comment, tasks_ref=None):
+    """Save to Firestore with corrected timestamp"""
+    created_time = datetime.utcnow()
+    doc = {
+        "task": name,
         "group": group,
         "comment": comment,
-        "timestamp": datetime.utcnow(),
-        "completed": False
-    })
-    st.toast(f"✅ Added '{text}' to '{group}'.")
-    st.rerun()
-
-# ------------------------------ Delete Completed Tasks ------------------------------
+        "completed": False,
+        "timestamp": created_time,
+        "created_str": format_task_timestamp(created_time)  # store human-readable version
+    }
+    if tasks_ref:
+        tasks_ref.add(doc)
+# ------------------------------ Delete Tasks
 def delete_all_completed(tasks_ref, unique_id):
     btn_key = f"del_all_completed_{unique_id}"
-    if st.button("❌ Delete All Pending Tasks", key=btn_key):
+    if st.button("❌ Delete All Pending Tasks in All Groups", key=btn_key):
         docs = list(tasks_ref.where("completed", "==", False).stream())
         if not docs:
-            st.info("No completed tasks to delete.")
+            st.info("No pending tasks to delete.")
             return
         batch = db.batch()
         for d in docs:
@@ -72,42 +95,55 @@ def delete_all_completed(tasks_ref, unique_id):
 
 def delete_group_completed(group_name, tasks_ref, unique_id):
     btn_key = f"del_group_completed_{group_name}_{unique_id}"
-    if st.button(f"❌ Delete Pending Tasks in '{group_name}'", key=btn_key):
+    if st.button(f"❌ Delete All Pending Tasks in : {grp}", key=btn_key):
         docs = list(
             tasks_ref.where("group", "==", group_name)
                      .where("completed", "==", False)
                      .stream()
         )
         if not docs:
-            st.info(f"No completed tasks to delete in '{group_name}'.")
+            st.info(f"No Pending tasks to delete in '{group_name}'.")
             return
         batch = db.batch()
         for d in docs:
             batch.delete(d.reference)
         batch.commit()
         st.toast(f"❌ Deleted all Pending tasks in '{group_name}'.")
-        st.experimental_rerun()
+        st.rerun()
 
 def delete_task(doc_id, task_text, tasks_ref):
     tasks_ref.document(doc_id).delete()
     st.toast(f"❌ Deleted '{task_text}'.")
     st.rerun()
 
+# ------------------------------ Timestamp helpers (Code 1 style)
+def to_datetime(ts):
+    if isinstance(ts, datetime):
+        return ts
+    try:
+        return ts.ToDatetime()  # Firestore Timestamp
+    except:
+        try:
+            return datetime.fromisoformat(ts)
+        except:
+            return None
+
 def fmt_elapsed_since(ts: datetime) -> str:
-    if not isinstance(ts, datetime):
+    ts = to_datetime(ts)
+    if not ts:
         return "N/A"
-    if ts.tzinfo is not None:
+    if ts.tzinfo:
         ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
     now = datetime.utcnow()
     delta = now - ts
     days = delta.days
-    seconds = delta.seconds
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
+    hours = delta.seconds // 3600
+    minutes = (delta.seconds % 3600) // 60
     return f"{days:02d}d {hours:02d}:{minutes:02d}"
 
 def safe_dt_str(dt: datetime) -> str:
-    if isinstance(dt, datetime):
+    dt = to_datetime(dt)
+    if dt:
         return dt.strftime("%Y-%m-%d %H:%M:%S")
     return "N/A"
 
@@ -118,7 +154,8 @@ if "authenticated" not in st.session_state:
 
 # ------------------------------ Authentication
 if not st.session_state.authenticated:
-    st.title("📝 Wickz Day Planner")
+    st.title("Wickz Day Planner")
+    st.markdown("---")
     st.markdown("## Free forever, as long as Streamlit keeps us online 😉")
     st.markdown("## 🔐 Login or Register")
 
@@ -160,7 +197,7 @@ if not st.session_state.authenticated:
 # ------------------------------ Main App
 nickname  = st.session_state.nickname
 tasks_ref = db.collection("tasks").document(nickname).collection("items")
-st.markdown("<h1 style='text-align:center;'>📝 Wickz Day Planner</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>Wickz Day Planner</h1>", unsafe_allow_html=True)
 
 # Fetch all tasks
 all_docs = list(tasks_ref.stream())
@@ -168,7 +205,6 @@ all_docs = list(tasks_ref.stream())
 # Initialize counters
 pending_count = 0
 completed_count = 0
-
 for d in all_docs:
     info = d.to_dict()
     if info.get("completed", False):
@@ -188,9 +224,9 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("# 💻 Tasks Overview")
-    st.markdown(f"### Total Tasks Count : {overall_count}")
-    st.markdown(f"#### Pending Tasks Count : {pending_count}")
-    st.markdown(f"#### Completed Tasks Count : {completed_count}")
+    st.markdown(f"### 🔎 Total Tasks Count : {overall_count}")
+    st.markdown(f"#### ⌛ Pending Tasks Count : {pending_count}")
+    st.markdown(f"#### ✅ Completed Tasks Count : {completed_count}")
     st.markdown("---")
     st.markdown("# 📈 Tasks Status Overview")
     docs_all = list(tasks_ref.stream())
@@ -227,42 +263,74 @@ with st.sidebar:
     else:
         st.info("No tasks to summarize.")
 
+    with st.sidebar:
+        # ... your existing sidebar elements ...
+
+        st.markdown("---")
+        st.markdown(
+            "<p style='font-size:12px;color:gray;text-align:center;'>&copy; 2025 Wickz Day Planner. All rights reserved.</p>",
+            unsafe_allow_html=True
+        )
+
 # ------------------------------ Add New Task
-st.markdown("# Add New Task")
-c1, c2 = st.columns(2)
-task_txt   = c1.text_input("Task Name", key="new_task")
-group_sel  = c2.selectbox("Choose group", ["Work","Personal","General"], key="group_sel")
-group_cust = c2.text_input("Or custom group", key="group_custom")
-comment    = st.text_area("Task Description", key="new_comment")
-if st.button("Add Task"):
-    final_grp = group_cust.strip() or group_sel
-    if task_txt.strip():
-        add_new_task(task_txt.strip(), final_grp, comment.strip(), tasks_ref)
-    else:
-        st.error("❌ Task Name cannot be empty.")
+
+st.markdown("---")
+st.markdown(f"## 🔰 Create a New Task")
+
+
+with st.form("add_task_form", clear_on_submit=True):
+    task_txt = st.text_input("Task Name")
+    c1, c2 = st.columns(2)
+    # Firestore groups
+    existing_groups = sorted(
+        {d.to_dict().get("group", "General") for d in all_docs if d.exists}
+    )
+    if "General" not in existing_groups:
+        existing_groups.append("General")
+    existing_groups = sorted(existing_groups)
+
+    group_cust = c1.text_input("Create New Group")
+    group_sel = c2.selectbox(
+        "Or select an existing group",
+        options=existing_groups,
+        index=0
+    )
+
+    comment = st.text_area("Task Description")
+
+    submitted = st.form_submit_button("Add Task")
+    if submitted:
+        final_grp = group_cust.strip() or group_sel
+        if task_txt.strip():
+            add_new_task(task_txt.strip(), final_grp, comment.strip(), tasks_ref)
+            st.success(f"✅ Task added: {task_txt}, Group={final_grp}")
+            st.rerun()  # The form will clear automatically
+        else:
+            st.error("❌ Task Name cannot be empty.")
 
 # ------------------------------ Toggle Pending / Completed
+st.markdown("---")
+st.markdown(f"## 🔎 View Created Tasks")
 view_completed = st.toggle("Show Completed Tasks", value=False)
 
 if not view_completed:
-    st.markdown(f"## 🗂️ Active Tasks : {pending_count}")
+    st.markdown(f"### ⏳ Pending Tasks : {pending_count}")
+    st.markdown(
+        "<span style='font-size:10px;color:#FFBF00;font-weight:bold;'> ** IMPORTANT : Switching to Desktop view is recommended for a cleaner user experience ** </span>",
+        unsafe_allow_html=True
+    )
 else:
-    st.markdown(f"## ✅ Completed Tasks : {completed_count}")
-
-# ------------------------------ Filter helpers
-def in_added_range(ts: datetime) -> bool:
-    if not isinstance(ts, datetime): return False
-    return True  # Keep original filter logic if needed
-
-def in_completed_range(ct: datetime) -> bool:
-    if not isinstance(ct, datetime): return False
-    return True  # Keep original filter logic if needed
+    st.markdown(f"### ✅ Completed Tasks : {completed_count}")
+    st.markdown(
+        "<span style='font-size:10px;color:#FFBF00;font-weight:bold;'> ** IMPORTANT : Switching to Desktop view is recommended for a cleaner user experience ** </span>",
+        unsafe_allow_html=True
+    )
 
 # ------------------------------ Pending Tasks
 def render_pending(tasks_ref):
     docs = list(tasks_ref.where("completed", "==", False).stream())
     if not docs:
-        st.info("🎉 No pending tasks.")
+        st.info("🎉 No Active tasks.")
         return
 
     grouped = {}
@@ -270,12 +338,16 @@ def render_pending(tasks_ref):
         grouped.setdefault(d.to_dict().get("group","General"), []).append((d.id, d.to_dict()))
 
     for grp, rows in grouped.items():
-        grptitle1_html = f"<span style='font-size:20px;'>📂 {grp} (Task Count : {len(rows)})</span>"
-        with st.expander("", expanded=True):
+        expander_label = f" ▶ {grp}"
+        grptitle1_html = f"<span style='font-size:20px;'>📂 Group Name : {grp}</span>"
+        grptitle2_html = f"<span style='font-size:20px;'>⌛ Pending Task Count : {len(rows)}</span>"
+        ptingrp = len(rows)
+        with st.expander(expander_label, expanded=True):
             st.markdown(grptitle1_html, unsafe_allow_html=True)
+            st.markdown(grptitle2_html, unsafe_allow_html=True)
 
             # Delete completed tasks in this group (button only)
-            delete_group_completed(grp, tasks_ref, unique_id=grp)
+            if ptingrp>3 : delete_group_completed(grp, tasks_ref, unique_id=grp)
 
             h = st.columns([0.28,0.28,0.16,0.10,0.08,0.10])
             h[0].markdown("**Task Name**"); h[1].markdown("**Task Description**")
@@ -347,9 +419,13 @@ def render_completed(tasks_ref):
         }))
 
     for grp, rows in grouped.items():
-        grptitle_html = f"<span style='font-size:20px;'>✅ {grp} (Task Count : {len(rows)})</span>"
-        with st.expander("", expanded=True):
-            st.markdown(grptitle_html, unsafe_allow_html=True)
+        expander_label = f" ▶ {grp}"
+        grptitle1_html = f"<span style='font-size:20px;'>📂 Group Name : {grp}</span>"
+        grptitle2_html = f"<span style='font-size:20px;'>✅ Comopleted Task Count : {len(rows)}</span>"
+        ptingrp = len(rows)
+        with st.expander(expander_label, expanded=True):
+            st.markdown(grptitle1_html, unsafe_allow_html=True)
+            st.markdown(grptitle2_html, unsafe_allow_html=True)
 
             h = st.columns([0.26,0.26,0.16,0.16,0.10,0.06])
             h[0].markdown("**Task Name**"); h[1].markdown("**Task Description**")
@@ -372,4 +448,4 @@ if view_completed:
     render_completed(tasks_ref)
 else:
     render_pending(tasks_ref)
-    delete_all_completed(tasks_ref, unique_id="main_app")
+    if pending_count > 4: delete_all_completed(tasks_ref, unique_id="main_app")
