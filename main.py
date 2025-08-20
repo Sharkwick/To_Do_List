@@ -1,8 +1,10 @@
 import streamlit as st
+from scipy.stats import false_discovery_control
 from firebase_utils import initialize_firebase
 from auth import login, register
 from tasks import render_pending, render_completed, add_new_task, delete_all_completed
 from ui import setup_page, sidebar
+from styles import load_custom_styles
 
 setup_page()
 db = initialize_firebase()
@@ -17,7 +19,7 @@ if not st.session_state.authenticated:
     st.markdown("## Free forever, as long as Streamlit keeps us online 😉")
     st.markdown("## 🔐 Login or Register")
 
-    login_tab, register_tab = st.tabs(["Login", "Register"])
+    login_tab, register_tab = st.tabs(["Login", "Click Here to Register"])
     with login_tab: login(db)
     with register_tab: register(db)
     st.stop()
@@ -54,11 +56,14 @@ with st.form("add_task_form", clear_on_submit=True):
 # ------------------------------ Toggle Tasks
 st.markdown("---")
 st.markdown("## 🔎 View Created Tasks")
-view_completed = st.toggle("Show Completed Tasks", value=False)
+st.markdown(load_custom_styles(), unsafe_allow_html=True)
 
-if view_completed:
-    render_completed(tasks_ref)
-else:
-    render_pending(tasks_ref, db)
-    if pending_count > 4:
-        delete_all_completed(tasks_ref, unique_id="main_app", db=db)
+pending_tab, completed_tab = st.tabs(["Pending Tasks", "Completed Tasks"])
+with pending_tab: render_pending(tasks_ref, db)
+with completed_tab: render_completed(tasks_ref,db)
+st.stop()
+
+#if view_completed:
+    #render_completed(tasks_ref)
+#else:
+    #render_pending(tasks_ref, db)
