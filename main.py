@@ -1,5 +1,4 @@
 import streamlit as st
-from scipy.stats import false_discovery_control
 from firebase_utils import initialize_firebase
 from auth import login, register
 from tasks import render_pending, render_completed, add_new_task, delete_all_completed
