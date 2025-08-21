@@ -13,7 +13,10 @@ if "authenticated" not in st.session_state:
     st.session_state.nickname = ""
 
 if not st.session_state.authenticated:
-    st.title("Wickz Day Planner")
+    st.markdown(
+        "<h1 style='text-align: center;'>Wickz Day Planner</h1>",
+        unsafe_allow_html=True
+    )
     st.markdown("---")
     st.markdown("## Free forever, as long as Streamlit keeps us online 😉")
     st.markdown("## 🔐 Login or Register")
