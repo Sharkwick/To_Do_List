@@ -29,6 +29,7 @@ tasks_ref = db.collection("tasks").document(nickname).collection("items")
 pending_count, completed_count = sidebar(nickname, tasks_ref, db)
 
 # ------------------------------ Add Task
+st.title("Wickz Day Planner")
 st.markdown("---")
 st.markdown("## 🔰 Create a New Task")
 all_docs = list(tasks_ref.stream())
